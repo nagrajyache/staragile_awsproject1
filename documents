@@ -1,0 +1,314 @@
+wget https://github.com/prometheus/prometheus/releases/download/v3.0.0/prometheus-3.0.0.linux-amd64.tar.gz
+
+
+
+
+
+
+1)create ec2 machine attch Iam role with full s3 access
+[root@ip-172-31-6-214 web-tier]# pwd
+/root/app/AWS-3-Tier-Architecture/application-code/web-tier
+[root@ip-172-31-6-214 web-tier]#
+sudo yum install nodejs npm -y
+node -v
+npm -v
+cd ..
+ls
+ls -lrt
+npm install
+npm run build
+aws s3 cp . s3://nagraj-3tier-frontend/ --recursive
+aws s3 ls s3://nagraj-3tier-frontend/
+
+2)create bukcet
+
+3)unblock all public access
+4)open s3 go to properties enable s3 hosting add index.html file
+
+
+5) under s3 permission attch below policy
+bucket policy
+
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "PublicReadGetObject",
+      "Effect": "Allow",
+      "Principal": "*",
+      "Action": "s3:GetObject",
+      "Resource": "arn:aws:s3:::nagraj-3tier-frontend/*"
+    }
+  ]
+}
+
+
+backend
+
+[root@ip-172-31-6-214 app-tier]# npm install
+
+added 68 packages, and audited 69 packages in 921ms
+
+2 packages are looking for funding
+  run `npm fund` for details
+
+7 vulnerabilities (3 low, 4 high)
+
+To address all issues, run:
+  npm audit fix
+
+Run `npm audit` for details.
+[root@ip-172-31-6-214 app-tier]# pwd
+/root/app/AWS-3-Tier-Architecture/application-code/app-tier
+[root@ip-172-31-6-214 app-tier]#
+
+sudo npm install -g pm2
+pm2 start index.js --name app-tier
+pm2 list
+pm2 logs app-tier
+
+
+Now we need to again build fronted code with replacing public IP of gthe instace to connect fronted to backend
+[root@ip-172-31-6-214 app-tier]# cd ..
+[root@ip-172-31-6-214 application-code]# cd web-tier/
+[root@ip-172-31-6-214 web-tier]# cd src
+[root@ip-172-31-6-214 src]# ls
+App.css  App.js  App.test.js  assets  components  global.js  hooks.js  index.css  index.js  reportWebVitals.js  setupTests.js  theme.js
+[root@ip-172-31-6-214 src]#
+[root@ip-172-31-6-214 src]# grep -Ri localhost *
+[root@ip-172-31-6-214 src]#
+[root@ip-172-31-6-214 src]# grep -Ri 4000 *
+[root@ip-172-31-6-214 src]# grep -Ri transaction *
+components/DatabaseDemo/DatabaseDemo.css:#transactions {
+components/DatabaseDemo/DatabaseDemo.css:#transactions td, #transactions th {
+components/DatabaseDemo/DatabaseDemo.css:#transactions tr:nth-child(even){background-color: #0A0128;}
+components/DatabaseDemo/DatabaseDemo.css:#transactions tr:hover {background-color:#221f2d;}
+components/DatabaseDemo/DatabaseDemo.css:#transactions th {
+components/DatabaseDemo/DatabaseDemo.js:               transactions: [],
+components/DatabaseDemo/DatabaseDemo.js:            this.fetch_retry('/api/transaction',3)
+components/DatabaseDemo/DatabaseDemo.js:              this.setState({ transactions : data.result });
+components/DatabaseDemo/DatabaseDemo.js:              console.log(this.state.transactions);
+components/DatabaseDemo/DatabaseDemo.js:            return this.state.transactions.map((transaction, index) => {
+components/DatabaseDemo/DatabaseDemo.js:               const { id, amount, description} = transaction //destructuring
+components/DatabaseDemo/DatabaseDemo.js:           fetch('/api/transaction', requestOptions)
+components/DatabaseDemo/DatabaseDemo.js:           this.setState({text_amt : "", text_desc:"",transaction:[]});
+components/DatabaseDemo/DatabaseDemo.js:            fetch('/api/transaction', requestOptions)
+components/DatabaseDemo/DatabaseDemo.js:            <table id='transactions'>
+[root@ip-172-31-6-214 src]#\      
+
+Update database code
+go webtier ->src -> database -> databse.json
+----------------------
+import React, {Component} from 'react';
+import './DatabaseDemo.css';
+
+class DatabaseDemo extends Component {
+
+    constructor(props) {
+        super(props)
+
+        this.handleTextChange = this.handleTextChange.bind(this);
+        this.handleButtonClick = this.handleButtonClick.bind(this);
+        this.handleButtonClickDel = this.handleButtonClickDel.bind(this);
+
+        this.state = {
+           transactions: [],
+           text_amt: "",
+           text_desc:""
+        }
+     }
+
+     componentDidMount() {
+        this.populateData();
+      }
+
+    populateData(){
+        this.fetch_retry('http://13.233.163.176:4000/transaction',3)
+        .then(res => res.json())
+        .then((data) => {
+          this.setState({ transactions : data.result });
+          console.log("state set");
+          console.log(this.state.transactions);
+        })
+        .catch(console.log);
+    }
+
+    async fetch_retry(url, n){
+        try {
+            return await fetch(url)
+        } catch(err) {
+            if (n === 1) throw err;
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            return await this.fetch_retry(url, n - 1);
+        }
+    };
+
+      renderTableData() {
+        return this.state.transactions.map((transaction, index) => {
+           const { id, amount, description} = transaction
+
+           return (
+              <tr key={id}>
+                 <td>{id}</td>
+                 <td>{amount}</td>
+                 <td>{description}</td>
+              </tr>
+           )
+        })
+     }
+
+    handleButtonClickDel(){
+
+       const requestOptions = {
+           method: 'DELETE'
+       }
+
+       fetch('http://13.233.163.176:4000/transaction', requestOptions)
+       .then(response => response.json())
+       .then(data => this.populateData())
+
+       this.setState({text_amt : "", text_desc:"",transaction:[]});
+
+    }
+
+     handleButtonClick(){
+
+         console.log(this.state.text_amt);
+         console.log(this.state.text_desc);
+
+        const requestOptions = {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({
+                "amount":this.state.text_amt,
+                "desc" :this.state.text_desc
+            })
+        }
+
+        fetch('http://13.233.163.176:4000/transaction', requestOptions)
+        .then(response => response.json())
+        .then(data => this.populateData())
+
+        this.setState({text_amt : "", text_desc:""});
+
+     }
+
+     handleTextChange(e){
+        this.setState({[e.target.name]:e.target.value})
+     }
+
+
+    render () {
+    return (
+        <div>
+        <h1 id='title' style={{paddingRight:"1em"}}>
+            Aurora Database Demo Page
+        </h1>
+
+        <input
+            style={{float:"right", marginBottom:"1em"}}
+            type="button"
+            value="DEL"
+            onClick={this.handleButtonClickDel}
+        />
+
+        <table id='transactions'>
+           <tbody>
+
+               <tr>
+                   <td>ID</td>
+                   <td>AMOUNT</td>
+                   <td>DESC</td>
+               </tr>
+
+               <tr>
+                    <td>
+                        <input
+                            type="button"
+                            value="ADD"
+                            onClick={this.handleButtonClick}
+                        />
+                    </td>
+
+                    <td>
+                        <input
+                            type="text"
+                            name="text_amt"
+                            value={this.state.text_amt}
+                            onChange={this.handleTextChange}
+                        />
+                    </td>
+
+                    <td>
+                        <input
+                            type="text"
+                            name="text_desc"
+                            value={this.state.text_desc}
+                            onChange={this.handleTextChange}
+                        />
+                    </td>
+               </tr>
+
+              {this.renderTableData()}
+
+           </tbody>
+        </table>
+
+     </div>
+
+    );
+  }
+}
+
+export default DatabaseDemo;
+
+
+
+this.fetch_retry('http://13.233.163.176:4000/transaction',3)
+
+cd ~/AWS-3-Tier-Architecture/application-code/web-tier
+
+npm run build
+cd build
+
+aws s3 sync . s3://nagraj-3tier-frontend/
+
+
+updted the dbconfig file with end point
+
+[root@ip-172-31-6-214 app-tier]#
+[root@ip-172-31-6-214 app-tier]# vi DbConfig.js
+[root@ip-172-31-6-214 app-tier]#
+[root@ip-172-31-6-214 app-tier]# pwd
+/root/app/AWS-3-Tier-Architecture/application-code/app-tier
+[root@ip-172-31-6-214 app-tier]#
+[root@ip-172-31-6-214 app-tier]# cat DbConfig.js
+module.exports = Object.freeze({
+    DB_HOST : 'database-1.ctmq0k4ggb3t.ap-south-1.rds.amazonaws.com',
+    DB_USER : 'admin',
+    DB_PWD : 'admin12345',
+    DB_DATABASE : 'database-1'
+});
+[root@ip-172-31-6-214 app-tier]#
+
+pm2 restart app-tier
+pm2 logs app-tier
+
+
+sudo dnf install mariadb105 -y
+mysql -h database-1.ctmq0k4ggb3t.ap-south-1.rds.amazonaws.com -u admin -p admin12345
+
+
+
+
+
+npm uninstall mysql
+npm install mysql2
+
+
+
+pm2 delete app-tier
+pm2 start index.js --name app-tier
+pm2 save
+
+
