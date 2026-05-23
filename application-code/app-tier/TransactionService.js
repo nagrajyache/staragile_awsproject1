@@ -1,64 +1,110 @@
 const dbcreds = require('./DbConfig');
-const mysql = require('mysql');
+const mysql = require('mysql2');
 
-const con = mysql.createConnection({
-    host: dbcreds.DB_HOST,
-    user: dbcreds.DB_USER,
-    password: dbcreds.DB_PWD,
-    database: dbcreds.DB_DATABASE
-});
+let con;
 
-function addTransaction(amount,desc){
-    var mysql = `INSERT INTO \`transactions\` (\`amount\`, \`description\`) VALUES ('${amount}','${desc}')`;
-    con.query(mysql, function(err,result){
-        if (err) throw err;
-        console.log("Adding to the table should have worked");
-    }) 
-    return 200;
-}
+function connectDB() {
+    con = mysql.createConnection({
+        host: dbcreds.DB_HOST,
+        user: dbcreds.DB_USER,
+        password: dbcreds.DB_PWD,
+        database: dbcreds.DB_DATABASE
+    });
 
-function getAllTransactions(callback){
-    var mysql = "SELECT * FROM transactions";
-    con.query(mysql, function(err,result){
-        if (err) throw err;
-        console.log("Getting all transactions...");
-        return(callback(result));
+    con.connect(function(err) {
+        if (err) {
+            console.log("❌ DB Connection Failed:", err.message);
+
+            // retry instead of crashing
+            setTimeout(connectDB, 5000);
+            return;
+        }
+
+        console.log("✅ Connected to MySQL database");
     });
 }
 
-function findTransactionById(id,callback){
-    var mysql = `SELECT * FROM transactions WHERE id = ${id}`;
-    con.query(mysql, function(err,result){
-        if (err) throw err;
-        console.log(`retrieving transactions with id ${id}`);
-        return(callback(result));
-    }) 
+// START CONNECTION SAFELY
+connectDB();
+
+// =====================
+// ADD TRANSACTION
+// =====================
+function addTransaction(amount, desc, callback) {
+
+    const sql = "INSERT INTO transactions (amount, description) VALUES (?, ?)";
+
+    con.query(sql, [amount, desc], function(err, result) {
+        if (err) {
+            console.log(err);
+            return callback(err, null);
+        }
+
+        console.log("Transaction added successfully");
+        return callback(null, result);
+    });
 }
 
-function deleteAllTransactions(callback){
-    var mysql = "DELETE FROM transactions";
-    con.query(mysql, function(err,result){
-        if (err) throw err;
-        console.log("Deleting all transactions...");
-        return(callback(result));
-    }) 
+// =====================
+// GET ALL
+// =====================
+function getAllTransactions(callback) {
+
+    const sql = "SELECT * FROM transactions";
+
+    con.query(sql, function(err, result) {
+        if (err) return callback(err, null);
+
+        return callback(null, result);
+    });
 }
 
-function deleteTransactionById(id, callback){
-    var mysql = `DELETE FROM transactions WHERE id = ${id}`;
-    con.query(mysql, function(err,result){
-        if (err) throw err;
-        console.log(`Deleting transactions with id ${id}`);
-        return(callback(result));
-    }) 
+// =====================
+// FIND BY ID
+// =====================
+function findTransactionById(id, callback) {
+
+    const sql = "SELECT * FROM transactions WHERE id = ?";
+
+    con.query(sql, [id], function(err, result) {
+        if (err) return callback(err, null);
+
+        return callback(null, result);
+    });
 }
 
+// =====================
+// DELETE ALL
+// =====================
+function deleteAllTransactions(callback) {
 
-module.exports = {addTransaction ,getAllTransactions, deleteAllTransactions, deleteAllTransactions, findTransactionById, deleteTransactionById};
+    const sql = "DELETE FROM transactions";
 
+    con.query(sql, function(err, result) {
+        if (err) return callback(err, null);
 
+        return callback(null, result);
+    });
+}
 
+// =====================
+// DELETE BY ID
+// =====================
+function deleteTransactionById(id, callback) {
 
+    const sql = "DELETE FROM transactions WHERE id = ?";
 
+    con.query(sql, [id], function(err, result) {
+        if (err) return callback(err, null);
 
+        return callback(null, result);
+    });
+}
 
+module.exports = {
+    addTransaction,
+    getAllTransactions,
+    findTransactionById,
+    deleteAllTransactions,
+    deleteTransactionById
+};

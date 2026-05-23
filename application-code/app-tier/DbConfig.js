@@ -1,6 +1,6 @@
 module.exports = Object.freeze({
-    DB_HOST : 'database-1.c380a08uukyc.ap-south-1.rds.amazonaws.com',
-    DB_USER : 'admin',
-    DB_PWD : 'kastro2025',
-    DB_DATABASE : 'webappdb'
+    DB_HOST: 'database-1.ctmq0k4ggb3t.ap-south-1.rds.amazonaws.com',
+    DB_USER: 'admin',
+    DB_PWD: 'admin12345',
+    DB_DATABASE: 'webappdb'
 });
